@@ -529,7 +529,7 @@ function! s:show_remote_selection_popup(root_config_file_path, root_configuratio
   endif
 
   let l:popup_id = popup_menu(a:selection_lines, {
-        \ 'title': 'RemoteList: select active remote',
+        \ 'title': 'RemoteSwitch: select active remote',
         \ 'callback': function('s:on_remote_list_popup_done'),
         \ 'filter': function('s:on_remote_list_popup_filter'),
         \ 'mapping': 0,
@@ -548,7 +548,7 @@ function! s:show_remote_selection_popup(root_config_file_path, root_configuratio
   let s:remote_list_popup_states[l:popup_id] = {
         \ 'root_config_file_path': a:root_config_file_path,
         \ 'root_configuration': deepcopy(a:root_configuration),
-        \ 'prompt_title': 'RemoteList: select active remote',
+        \ 'prompt_title': 'RemoteSwitch: select active remote',
         \ 'search_query': '',
         \ 'search_mode': 0,
         \ 'filtered_remote_indexes': s:remote_indexes(
@@ -602,7 +602,7 @@ function! vim_remote_naive#remote_add(...) abort
   call s:notify('Added remote: ' . l:connection)
 endfunction
 
-function! vim_remote_naive#remote_list() abort
+function! vim_remote_naive#remote_switch() abort
   let l:root_config_file_path = vim_remote_naive#root_config_file_path()
   let l:root_configuration = s:read_root_configuration(l:root_config_file_path)
   if l:root_configuration is v:null
@@ -620,11 +620,11 @@ function! vim_remote_naive#remote_list() abort
         \ get(l:root_configuration, s:root_config_current_key, v:null))
   let l:selection_lines = s:remote_selection_lines(l:remotes, l:current_remote_index)
 
-  if exists('g:vim_remote_naive_test_remote_list_selection_index')
+  if exists('g:vim_remote_naive_test_remote_switch_selection_index')
     call s:apply_remote_selection(
           \ l:root_config_file_path,
           \ l:root_configuration,
-          \ g:vim_remote_naive_test_remote_list_selection_index)
+          \ g:vim_remote_naive_test_remote_switch_selection_index)
     return
   endif
 
@@ -634,8 +634,4 @@ function! vim_remote_naive#remote_list() abort
 
   let l:selection_result = s:select_remote_with_inputlist(l:selection_lines)
   call s:apply_remote_selection(l:root_config_file_path, l:root_configuration, l:selection_result)
-endfunction
-
-function! vim_remote_naive#remote_switch() abort
-  call vim_remote_naive#remote_list()
 endfunction

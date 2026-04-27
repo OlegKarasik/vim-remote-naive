@@ -200,8 +200,8 @@ function! s:test_remote_add_appends_remote_to_remotes_array() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_list_fails_when_root_configuration_missing() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-missing-config'
+function! s:test_remote_switch_fails_when_root_configuration_missing() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-switch-missing-config'
   let l:config_path = fnamemodify(l:test_root . '/config.json', ':p')
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
@@ -209,7 +209,7 @@ function! s:test_remote_list_fails_when_root_configuration_missing() abort
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
   try
-    RemoteList
+    RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
   endtry
@@ -222,8 +222,8 @@ function! s:test_remote_list_fails_when_root_configuration_missing() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_list_fails_when_remotes_missing() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-missing-remotes'
+function! s:test_remote_switch_fails_when_remotes_missing() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-switch-missing-remotes'
   let l:config_path = l:test_root . '/config.json'
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
@@ -232,7 +232,7 @@ function! s:test_remote_list_fails_when_remotes_missing() abort
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
   try
-    RemoteList
+    RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
   endtry
@@ -245,8 +245,8 @@ function! s:test_remote_list_fails_when_remotes_missing() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_list_fails_when_remotes_empty() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-empty-remotes'
+function! s:test_remote_switch_fails_when_remotes_empty() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-switch-empty-remotes'
   let l:config_path = l:test_root . '/config.json'
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
@@ -255,7 +255,7 @@ function! s:test_remote_list_fails_when_remotes_empty() abort
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
   try
-    RemoteList
+    RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
   endtry
@@ -267,44 +267,6 @@ function! s:test_remote_list_fails_when_remotes_empty() abort
 
   let l:updated_config = s:read_json_file(l:config_path)
   call assert_false(has_key(l:updated_config, 'current'), 'Expected current to remain unset when remotes are empty.')
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
-endfunction
-
-function! s:test_remote_list_selects_active_remote_and_writes_current() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-selects-current'
-  let l:config_path = l:test_root . '/config.json'
-  let l:remote_one = {
-        \ 'source': '/srv/project-a',
-        \ 'destination': '/Users/me/project-a',
-        \ 'connection': 'ssh user@host-a'
-        \ }
-  let l:remote_two = {
-        \ 'source': '/srv/project-b',
-        \ 'destination': '/Users/me/project-b',
-        \ 'connection': 'ssh user@host-b'
-        \ }
-  let l:initial_config = {
-        \ 'version': 1,
-        \ 'remotes': [l:remote_one, l:remote_two]
-        \ }
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
-  call mkdir(l:test_root, 'p')
-  call s:write_json_file(l:config_path, l:initial_config)
-
-  let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  let g:vim_remote_naive_test_remote_list_selection_index = 2
-  try
-    silent RemoteList
-  finally
-    unlet g:vim_remote_naive_root_config_file_path_override
-    unlet g:vim_remote_naive_test_remote_list_selection_index
-  endtry
-
-  let l:updated_config = s:read_json_file(l:config_path)
-  call assert_equal(l:remote_two, l:updated_config['current'], 'Expected selected remote to be written to current.')
-  call assert_equal([l:remote_one, l:remote_two], l:updated_config['remotes'], 'Expected remotes array to remain unchanged.')
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
@@ -333,12 +295,12 @@ function! s:test_remote_switch_selects_active_remote_and_writes_current() abort
   call s:write_json_file(l:config_path, l:initial_config)
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  let g:vim_remote_naive_test_remote_list_selection_index = 2
+  let g:vim_remote_naive_test_remote_switch_selection_index = 2
   try
     silent RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
-    unlet g:vim_remote_naive_test_remote_list_selection_index
+    unlet g:vim_remote_naive_test_remote_switch_selection_index
   endtry
 
   let l:updated_config = s:read_json_file(l:config_path)
@@ -348,8 +310,8 @@ function! s:test_remote_switch_selects_active_remote_and_writes_current() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_list_cancel_keeps_existing_current() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-cancel'
+function! s:test_remote_switch_cancel_keeps_existing_current() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-switch-cancel'
   let l:config_path = l:test_root . '/config.json'
   let l:remote_one = {
         \ 'source': '/srv/project-a',
@@ -372,12 +334,12 @@ function! s:test_remote_list_cancel_keeps_existing_current() abort
   call s:write_json_file(l:config_path, l:initial_config)
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  let g:vim_remote_naive_test_remote_list_selection_index = 0
+  let g:vim_remote_naive_test_remote_switch_selection_index = 0
   try
-    silent RemoteList
+    silent RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
-    unlet g:vim_remote_naive_test_remote_list_selection_index
+    unlet g:vim_remote_naive_test_remote_switch_selection_index
   endtry
 
   let l:updated_config = s:read_json_file(l:config_path)
@@ -386,8 +348,8 @@ function! s:test_remote_list_cancel_keeps_existing_current() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_list_rejects_invalid_remote_item() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-list-invalid-entry'
+function! s:test_remote_switch_rejects_invalid_remote_item() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-switch-invalid-entry'
   let l:config_path = l:test_root . '/config.json'
   let l:invalid_remote = {
         \ 'source': '/srv/project-a',
@@ -403,12 +365,12 @@ function! s:test_remote_list_rejects_invalid_remote_item() abort
   call s:write_json_file(l:config_path, l:initial_config)
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  let g:vim_remote_naive_test_remote_list_selection_index = 1
+  let g:vim_remote_naive_test_remote_switch_selection_index = 1
   try
-    RemoteList
+    RemoteSwitch
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
-    unlet g:vim_remote_naive_test_remote_list_selection_index
+    unlet g:vim_remote_naive_test_remote_switch_selection_index
   endtry
 
   let l:messages = s:captured_messages()
@@ -431,11 +393,10 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_add_creates_root_configuration_when_missing()
   call s:test_remote_add_rejects_invalid_argument_count()
   call s:test_remote_add_appends_remote_to_remotes_array()
-  call s:test_remote_list_fails_when_root_configuration_missing()
-  call s:test_remote_list_fails_when_remotes_missing()
-  call s:test_remote_list_fails_when_remotes_empty()
-  call s:test_remote_list_selects_active_remote_and_writes_current()
+  call s:test_remote_switch_fails_when_root_configuration_missing()
+  call s:test_remote_switch_fails_when_remotes_missing()
+  call s:test_remote_switch_fails_when_remotes_empty()
   call s:test_remote_switch_selects_active_remote_and_writes_current()
-  call s:test_remote_list_cancel_keeps_existing_current()
-  call s:test_remote_list_rejects_invalid_remote_item()
+  call s:test_remote_switch_cancel_keeps_existing_current()
+  call s:test_remote_switch_rejects_invalid_remote_item()
 endfunction

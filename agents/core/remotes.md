@@ -22,7 +22,7 @@
 ## Active remote (`current`)
 
 1. `current` stores the selected remote object.
-2. `:RemoteList` and `:RemoteSwitch` update `current` after user confirms selection.
+2. `:RemoteSwitch` updates `current` after user confirms selection.
 3. Cancelled selection leaves `current` unchanged.
 
 ## Selection line format

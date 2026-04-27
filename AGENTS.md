@@ -11,7 +11,7 @@ This file is the entry point for routing and project concepts.
 
 ## Quick Project Surface
 
-1. Commands: `RemoteConfig`, `RemoteAdd`, `RemoteList`, `RemoteSwitch`.
+1. Commands: `RemoteConfig`, `RemoteAdd`, `RemoteSwitch`.
 2. Core model: **Root Configuration** JSON file with `version`, `remotes`, and `current`.
 
 ## Documentation Index
@@ -23,9 +23,8 @@ This file is the entry point for routing and project concepts.
 5. `agents/commands/remote-commands.md` - command docs index.
 6. `agents/commands/remote-config.md` - `:RemoteConfig` behavior and side effects.
 7. `agents/commands/remote-add.md` - `:RemoteAdd` behavior and side effects.
-8. `agents/commands/remote-list.md` - `:RemoteList` behavior and side effects.
-9. `agents/commands/remote-switch.md` - `:RemoteSwitch` behavior and side effects.
-10. `agents/ui/popups-shared.md` - shared popup behavior notes.
+8. `agents/commands/remote-switch.md` - `:RemoteSwitch` behavior and side effects.
+9. `agents/ui/popups-shared.md` - shared popup behavior notes.
 
 ## Lookup Guidance
 

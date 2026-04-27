@@ -2,7 +2,7 @@
 
 **Scope:** `:RemoteSwitch` selection and current-remote updates.
 **Trigger keywords:** RemoteSwitch, switch active remote.
-**Depends on:** `agents/commands/remote-list.md`.
+**Depends on:** `agents/core/root-configuration.md`, `agents/core/remotes.md`, `agents/ui/popups-shared.md`.
 **Conflicts:** none.
 
 ## Signature
@@ -11,7 +11,10 @@
 
 ## Behavior
 
-1. Uses the same selection flow as `:RemoteList`.
-2. Shows the same remote list and `*` marker for current remote.
-3. Updates `current` with the selected remote.
-4. Cancelled selection keeps configuration unchanged.
+1. Reads and validates Root Configuration.
+2. Requires a non-empty `remotes` array.
+3. Shows a remote selection popup (`popup_menu()`) or input-list fallback (`inputlist()`).
+4. Shows `*` marker for the current remote.
+5. Supports popup search mode (`Ctrl+F`) and query filtering.
+6. Updates `current` with the selected remote.
+7. Cancelled selection keeps configuration unchanged.

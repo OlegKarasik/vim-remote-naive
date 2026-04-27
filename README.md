@@ -3,11 +3,10 @@
 > [!WARNING]
 > This plugin was written by AI, except for `AGENTS.md`.
 
-`vim-remote-naive` currently provides four commands:
+`vim-remote-naive` currently provides three commands:
 
 - `:RemoteConfig`
 - `:RemoteAdd`
-- `:RemoteList`
 - `:RemoteSwitch`
 
 ## Root Configuration
@@ -18,7 +17,7 @@ The `:RemoteConfig` command creates this file when it does not already exist.
 The main fields used by this plugin are:
 
 - `remotes` (array): list of remote definitions.
-- `current` (object): currently active remote selected by `:RemoteList` or `:RemoteSwitch`.
+- `current` (object): currently active remote selected by `:RemoteSwitch`.
 
 Each item inside `remotes` is an object with string fields:
 
@@ -47,17 +46,9 @@ Default file content:
 }
 ```
 
-## `:RemoteList`
-
-Reads Root Configuration field `remotes` and shows a selection popup (or an input-list fallback when popup support is unavailable).
-
-After selecting a remote, the selected remote object is written to Root Configuration field `current`.
-
-If selection is cancelled, Root Configuration is not changed.
-
 ## `:RemoteSwitch`
 
-Shows the same selection popup as `:RemoteList` (with input-list fallback).
+Reads Root Configuration field `remotes` and shows a selection popup (or an input-list fallback when popup support is unavailable).
 
 The current remote is marked with `*`. After selecting a remote, the selected object is written to Root Configuration field `current`.
 

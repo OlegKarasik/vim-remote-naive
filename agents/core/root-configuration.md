@@ -35,7 +35,7 @@
 
 1. `:RemoteConfig` ensures the file exists and opens it in the current buffer.
 2. `:RemoteAdd` ensures the file exists before appending a new remote.
-3. `:RemoteList` / `:RemoteSwitch` read and update `current`, but do not create config automatically.
+3. `:RemoteSwitch` reads and updates `current`, but does not create config automatically.
 
 ## Validation on read
 
