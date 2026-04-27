@@ -3,10 +3,12 @@
 > [!WARNING]
 > This plugin was written by AI, except for `AGENTS.md`.
 
-`vim-remote-naive` currently provides two commands:
+`vim-remote-naive` currently provides four commands:
 
 - `:RemoteConfig`
+- `:RemoteAdd`
 - `:RemoteList`
+- `:RemoteSwitch`
 
 ## Root Configuration
 
@@ -16,7 +18,7 @@ The `:RemoteConfig` command creates this file when it does not already exist.
 The main fields used by this plugin are:
 
 - `remotes` (array): list of remote definitions.
-- `current` (object): currently active remote selected by `:RemoteList`.
+- `current` (object): currently active remote selected by `:RemoteList` or `:RemoteSwitch`.
 
 Each item inside `remotes` is an object with string fields:
 
@@ -26,7 +28,7 @@ Each item inside `remotes` is an object with string fields:
 
 ## `:RemoteConfig`
 
-Creates the default **Root Configuration** JSON file in the user-wide config directory.
+Ensures the default **Root Configuration** JSON file exists in the user-wide config directory and opens it in the current buffer.
 
 Location by OS:
 
@@ -34,7 +36,7 @@ Location by OS:
 - **macOS:** `~/Library/Application Support/vim-remote-naive/config.json`
 - **Linux:** `$XDG_CONFIG_HOME/vim-remote-naive/config.json` (fallback: `~/.config/vim-remote-naive/config.json`)
 
-If the Root Configuration file already exists, the command leaves it unchanged.
+If the Root Configuration file already exists, the command leaves it unchanged and opens it.
 
 Default file content:
 
@@ -52,3 +54,28 @@ Reads Root Configuration field `remotes` and shows a selection popup (or an inpu
 After selecting a remote, the selected remote object is written to Root Configuration field `current`.
 
 If selection is cancelled, Root Configuration is not changed.
+
+## `:RemoteSwitch`
+
+Shows the same selection popup as `:RemoteList` (with input-list fallback).
+
+The current remote is marked with `*`. After selecting a remote, the selected object is written to Root Configuration field `current`.
+
+If selection is cancelled, Root Configuration is not changed.
+
+## `:RemoteAdd`
+
+Appends a new remote object to Root Configuration field `remotes`.
+If Root Configuration does not exist yet, `:RemoteAdd` creates the default file first.
+
+Usage:
+
+```vim
+:RemoteAdd {connection} {local-path} {remote-path}
+```
+
+Field mapping:
+
+- `connection` -> `connection`
+- `local-path` -> `destination`
+- `remote-path` -> `source`
