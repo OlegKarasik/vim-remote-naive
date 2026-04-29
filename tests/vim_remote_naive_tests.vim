@@ -104,76 +104,25 @@ function! s:test_remote_config_does_not_overwrite_existing_root_configuration() 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
-function! s:test_remote_add_creates_root_configuration_when_missing() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-add-creates-config'
-  let l:config_path = fnamemodify(l:test_root . '/config.json', ':p')
-  let l:added_remote = {
-        \ 'source': '/srv/project',
-        \ 'destination': '/Users/me/project',
-        \ 'connection': 'user@host'
-        \ }
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
-
-  let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  try
-    silent RemoteAdd user@host /Users/me/project /srv/project
-  finally
-    unlet g:vim_remote_naive_root_config_file_path_override
-  endtry
-
-  call assert_true(filereadable(l:config_path), 'Expected RemoteAdd to create missing Root Configuration file.')
-
-  let l:updated_config = s:read_json_file(l:config_path)
-  call assert_equal([l:added_remote], l:updated_config['remotes'], 'Expected RemoteAdd to append remote into new configuration.')
-  call assert_false(has_key(l:updated_config, 'current'), 'Expected current to remain unset in new configuration.')
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+function! s:test_remote_add_command_is_not_defined() abort
+  call assert_equal(0, exists(':RemoteAdd'), 'Expected RemoteAdd command to be undefined.')
 endfunction
 
-function! s:test_remote_add_rejects_invalid_argument_count() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-add-invalid-arg-count'
-  let l:config_path = l:test_root . '/config.json'
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
-  call mkdir(l:test_root, 'p')
-  call s:write_json_file(l:config_path, {'version': 1, 'remotes': []})
-
-  let g:vim_remote_naive_root_config_file_path_override = l:config_path
-  try
-    RemoteAdd user@host /Users/me/project
-  finally
-    unlet g:vim_remote_naive_root_config_file_path_override
-  endtry
-
-  let l:messages = s:captured_messages()
-  call assert_true(
-        \ stridx(l:messages, 'RemoteAdd expects exactly 3 arguments: {connection} {local-path} {remote-path}.') >= 0,
-        \ 'Expected invalid argument count error message.')
-
-  let l:updated_config = s:read_json_file(l:config_path)
-  call assert_equal([], l:updated_config['remotes'], 'Expected remotes to remain unchanged when args are invalid.')
-
-  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+function! s:test_remote_pull_command_is_defined() abort
+  call assert_equal(2, exists(':RemotePull'), 'Expected RemotePull command to be defined.')
 endfunction
 
-function! s:test_remote_add_appends_remote_to_remotes_array() abort
-  let l:test_root = s:repo_root . '/tests/tmp/remote-add-appends-remote'
+function! s:test_remote_pull_fails_when_current_missing() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-pull-missing-current'
   let l:config_path = l:test_root . '/config.json'
-  let l:existing_remote = {
+  let l:remote_one = {
         \ 'source': '/srv/project-a',
         \ 'destination': '/Users/me/project-a',
         \ 'connection': 'user@host-a'
         \ }
-  let l:added_remote = {
-        \ 'source': '/srv/project-b',
-        \ 'destination': '/Users/me/project-b',
-        \ 'connection': 'user@host-b'
-        \ }
   let l:initial_config = {
         \ 'version': 1,
-        \ 'remotes': [l:existing_remote],
-        \ 'current': l:existing_remote
+        \ 'remotes': [l:remote_one]
         \ }
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
@@ -182,20 +131,74 @@ function! s:test_remote_add_appends_remote_to_remotes_array() abort
 
   let g:vim_remote_naive_root_config_file_path_override = l:config_path
   try
-    silent RemoteAdd user@host-b /Users/me/project-b /srv/project-b
+    RemotePull
   finally
     unlet g:vim_remote_naive_root_config_file_path_override
   endtry
 
+  let l:messages = s:captured_messages()
+  call assert_true(
+        \ stridx(l:messages, 'No active remote selected. Run :RemoteSwitch to select a remote.') >= 0,
+        \ 'Expected missing current remote error message.')
+
   let l:updated_config = s:read_json_file(l:config_path)
+  call assert_equal(l:initial_config, l:updated_config, 'Expected missing current to keep configuration unchanged.')
+
+  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+endfunction
+
+function! s:test_remote_pull_starts_async_rsync_for_current_remote() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-pull-starts-rsync'
+  let l:config_path = l:test_root . '/config.json'
+  let l:remote_one = {
+        \ 'source': '/srv/project-a',
+        \ 'destination': '/Users/me/project-a',
+        \ 'connection': 'ssh -p 2222 user@host-a'
+        \ }
+  let l:remote_two = {
+        \ 'source': '/srv/project-b',
+        \ 'destination': '/Users/me/project-b',
+        \ 'connection': 'user@host-b'
+        \ }
+  let l:initial_config = {
+        \ 'version': 1,
+        \ 'remotes': [l:remote_one, l:remote_two],
+        \ 'current': l:remote_one
+        \ }
+
+  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+  call mkdir(l:test_root, 'p')
+  call s:write_json_file(l:config_path, l:initial_config)
+
+  let l:terminal_capture = {}
+  let g:vim_remote_naive_root_config_file_path_override = l:config_path
+  let g:vim_remote_naive_test_remote_pull_terminal_capture = {}
+  try
+    silent RemotePull
+    let l:terminal_capture = deepcopy(g:vim_remote_naive_test_remote_pull_terminal_capture)
+  finally
+    unlet g:vim_remote_naive_root_config_file_path_override
+    unlet g:vim_remote_naive_test_remote_pull_terminal_capture
+  endtry
+
   call assert_equal(
-        \ [l:existing_remote, l:added_remote],
-        \ l:updated_config['remotes'],
-        \ 'Expected RemoteAdd to append a new remote entry.')
+        \ [
+        \   'rsync',
+        \   '-az',
+        \   '-e',
+        \   'ssh -p 2222',
+        \   'user@host-a:/srv/project-a/',
+        \   '/Users/me/project-a/'
+        \ ],
+        \ l:terminal_capture['command_args'],
+        \ 'Expected RemotePull to build rsync command from current remote.')
   call assert_equal(
-        \ l:existing_remote,
-        \ l:updated_config['current'],
-        \ 'Expected current remote to stay unchanged after RemoteAdd.')
+        \ 'vim-remote-naive:RemotePull',
+        \ l:terminal_capture['terminal_name'],
+        \ 'Expected RemotePull to use terminal title for rsync execution.')
+
+  let l:updated_config = s:read_json_file(l:config_path)
+  call assert_equal(l:initial_config, l:updated_config, 'Expected RemotePull to not modify Root Configuration.')
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
@@ -390,9 +393,10 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_root_config_file_path_for_linux()
   call s:test_remote_config_creates_default_root_configuration()
   call s:test_remote_config_does_not_overwrite_existing_root_configuration()
-  call s:test_remote_add_creates_root_configuration_when_missing()
-  call s:test_remote_add_rejects_invalid_argument_count()
-  call s:test_remote_add_appends_remote_to_remotes_array()
+  call s:test_remote_add_command_is_not_defined()
+  call s:test_remote_pull_command_is_defined()
+  call s:test_remote_pull_fails_when_current_missing()
+  call s:test_remote_pull_starts_async_rsync_for_current_remote()
   call s:test_remote_switch_fails_when_root_configuration_missing()
   call s:test_remote_switch_fails_when_remotes_missing()
   call s:test_remote_switch_fails_when_remotes_empty()

@@ -13,17 +13,16 @@
    - `destination`
 2. The same shape is used in both `remotes[]` and `current`.
 
-## Field mapping from `:RemoteAdd`
+## Authoring remotes
 
-1. `connection` argument -> `connection`
-2. `local-path` argument -> `destination`
-3. `remote-path` argument -> `source`
+1. Add and edit entries in `remotes` directly in Root Configuration JSON.
 
 ## Active remote (`current`)
 
 1. `current` stores the selected remote object.
 2. `:RemoteSwitch` updates `current` after user confirms selection.
-3. Cancelled selection leaves `current` unchanged.
+3. `:RemotePull` uses `current` as source for rsync pull operation.
+4. Cancelled selection leaves `current` unchanged.
 
 ## Selection line format
 

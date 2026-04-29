@@ -3,70 +3,29 @@
 > [!WARNING]
 > This plugin was written by AI, except for `AGENTS.md`.
 
-`vim-remote-naive` currently provides three commands:
+`vim-remote-naive` manages remote definitions in a user-wide JSON file and lets you switch the active remote inside Vim.
 
-- `:RemoteConfig`
-- `:RemoteAdd`
-- `:RemoteSwitch`
+## Essentials
 
-## Root Configuration
+Available commands:
 
-**Root Configuration** is the user-wide JSON configuration file for this plugin.
-The `:RemoteConfig` command creates this file when it does not already exist.
+- `:RemoteConfig` - ensures the Root Configuration file exists and opens it.
+- `:RemoteSwitch` - selects an entry from `remotes` and writes it to `current`.
+- `:RemotePull` - pulls updates from the selected remote into the local destination using async `rsync` in a terminal.
 
-The main fields used by this plugin are:
+Quick workflow:
 
-- `remotes` (array): list of remote definitions.
-- `current` (object): currently active remote selected by `:RemoteSwitch`.
+1. Run `:RemoteConfig`.
+2. Add remote entries to `remotes` in the opened JSON file.
+3. Run `:RemoteSwitch` and choose the active remote.
+4. Run `:RemotePull` to sync remote changes into your local directory.
 
-Each item inside `remotes` is an object with string fields:
+## Detailed documentation (wiki format)
 
-- `source`: source directory on the remote host.
-- `destination`: destination directory on the local host.
-- `connection`: connection value used to access the remote host.
+Detailed docs are split into wiki-style pages:
 
-## `:RemoteConfig`
+- [Wiki Home](wiki/Home.md)
+- [Root Configuration](wiki/Root-Configuration.md)
+- [Command Reference](wiki/Command-Reference.md)
 
-Ensures the default **Root Configuration** JSON file exists in the user-wide config directory and opens it in the current buffer.
-
-Location by OS:
-
-- **Windows:** `%APPDATA%/vim-remote-naive/config.json` (fallback: `~/AppData/Roaming/vim-remote-naive/config.json`)
-- **macOS:** `~/Library/Application Support/vim-remote-naive/config.json`
-- **Linux:** `$XDG_CONFIG_HOME/vim-remote-naive/config.json` (fallback: `~/.config/vim-remote-naive/config.json`)
-
-If the Root Configuration file already exists, the command leaves it unchanged and opens it.
-
-Default file content:
-
-```json
-{
-  "version": 1,
-  "remotes": []
-}
-```
-
-## `:RemoteSwitch`
-
-Reads Root Configuration field `remotes` and shows a selection popup (or an input-list fallback when popup support is unavailable).
-
-The current remote is marked with `*`. After selecting a remote, the selected object is written to Root Configuration field `current`.
-
-If selection is cancelled, Root Configuration is not changed.
-
-## `:RemoteAdd`
-
-Appends a new remote object to Root Configuration field `remotes`.
-If Root Configuration does not exist yet, `:RemoteAdd` creates the default file first.
-
-Usage:
-
-```vim
-:RemoteAdd {connection} {local-path} {remote-path}
-```
-
-Field mapping:
-
-- `connection` -> `connection`
-- `local-path` -> `destination`
-- `remote-path` -> `source`
+Published wiki (GitHub): https://github.com/OlegKarasik/vim-remote-naive/wiki

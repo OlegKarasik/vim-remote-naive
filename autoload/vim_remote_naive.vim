@@ -20,6 +20,13 @@ function! s:trim_trailing_separators(path) abort
   return substitute(a:path, '[\/\\]\+$', '', '')
 endfunction
 
+function! s:with_trailing_separator(path) abort
+  if empty(a:path) || a:path =~# '[\/\\]$'
+    return a:path
+  endif
+  return a:path . '/'
+endfunction
+
 function! s:is_windows() abort
   return has('win32') || has('win64') || has('win32unix')
 endfunction
@@ -151,6 +158,24 @@ function! s:is_valid_remote_item(remote_item, remote_index) abort
       call s:notify_error(
             \ 'Invalid remote entry #' . (a:remote_index + 1)
             \ . ': missing string field "' . l:key . '".')
+      return 0
+    endif
+  endfor
+
+  return 1
+endfunction
+
+function! s:is_valid_current_remote(remote_item) abort
+  if type(a:remote_item) != v:t_dict
+    call s:notify_error('Root Configuration "current" must be an object. Run :RemoteSwitch to select a remote.')
+    return 0
+  endif
+
+  for l:key in s:remote_required_fields
+    if !has_key(a:remote_item, l:key) || type(a:remote_item[l:key]) != v:t_string
+      call s:notify_error(
+            \ 'Root Configuration "current" is missing string field "' . l:key
+            \ . '". Run :RemoteSwitch to select a remote.')
       return 0
     endif
   endfor
@@ -558,6 +583,74 @@ function! s:show_remote_selection_popup(root_config_file_path, root_configuratio
   return 1
 endfunction
 
+function! s:remote_pull_transport(connection) abort
+  let l:raw_connection = trim(a:connection)
+  if empty(l:raw_connection)
+    call s:notify_error(
+          \ 'Root Configuration "current.connection" is empty.'
+          \ . ' Run :RemoteConfig and :RemoteSwitch to select a remote.')
+    return v:null
+  endif
+
+  let l:ssh_command = 'ssh'
+  let l:target = l:raw_connection
+  if l:raw_connection =~# '^ssh\>'
+    let l:connection_parts = split(l:raw_connection)
+    if len(l:connection_parts) < 2
+      call s:notify_error(
+            \ 'Root Configuration "current.connection" must include SSH target.'
+            \ . ' Run :RemoteConfig and :RemoteSwitch to select a remote.')
+      return v:null
+    endif
+
+    let l:target = l:connection_parts[-1]
+    let l:ssh_parts = l:connection_parts[0 : len(l:connection_parts) - 2]
+    let l:ssh_command = empty(l:ssh_parts) ? 'ssh' : join(l:ssh_parts, ' ')
+  endif
+
+  if l:target =~# '\s'
+    call s:notify_error(
+          \ 'Root Configuration "current.connection" must end with SSH target'
+          \ . ' like user@host. Run :RemoteConfig and :RemoteSwitch to select a remote.')
+    return v:null
+  endif
+
+  return {
+        \ 'ssh_command': l:ssh_command,
+        \ 'target': l:target
+        \ }
+endfunction
+
+function! s:start_async_terminal_command(command_args, terminal_name) abort
+  if exists('g:vim_remote_naive_test_remote_pull_terminal_capture')
+    let g:vim_remote_naive_test_remote_pull_terminal_capture = {
+          \ 'command_args': deepcopy(a:command_args),
+          \ 'terminal_name': a:terminal_name
+          \ }
+    let l:start_result = get(g:, 'vim_remote_naive_test_remote_pull_terminal_start_result', 1)
+    return type(l:start_result) == v:t_number ? l:start_result : str2nr(l:start_result)
+  endif
+
+  if !has('terminal') || !exists('*term_start')
+    call s:notify_error('Terminal support is unavailable in this Vim build.')
+    return 0
+  endif
+
+  botright 12new
+  let l:job_id = term_start(a:command_args, {
+        \ 'curwin': 1,
+        \ 'term_name': a:terminal_name,
+        \ 'term_finish': 'open'
+        \ })
+  if l:job_id <= 0
+    close
+    call s:notify_error('Failed to start terminal job.')
+    return 0
+  endif
+
+  return 1
+endfunction
+
 function! vim_remote_naive#remote_config() abort
   let l:root_config_file_path = vim_remote_naive#root_config_file_path()
   if !s:ensure_root_configuration_exists(l:root_config_file_path)
@@ -567,39 +660,65 @@ function! vim_remote_naive#remote_config() abort
   execute 'edit ' . fnameescape(l:root_config_file_path)
 endfunction
 
-function! vim_remote_naive#remote_add(...) abort
-  if a:0 != 3
-    call s:notify_error('RemoteAdd expects exactly 3 arguments: {connection} {local-path} {remote-path}.')
-    return
-  endif
-
-  let l:connection = a:1
-  let l:local_path = a:2
-  let l:remote_path = a:3
-
+function! vim_remote_naive#remote_pull() abort
   let l:root_config_file_path = vim_remote_naive#root_config_file_path()
-  if !s:ensure_root_configuration_exists(l:root_config_file_path)
-    return
-  endif
-
   let l:root_configuration = s:read_root_configuration(l:root_config_file_path)
   if l:root_configuration is v:null
     return
   endif
 
-  let l:added_remote = {
-        \ 'source': l:remote_path,
-        \ 'destination': l:local_path,
-        \ 'connection': l:connection
-        \ }
-  let l:updated_root_configuration = deepcopy(l:root_configuration)
-  call add(l:updated_root_configuration[s:root_config_remotes_key], l:added_remote)
-
-  if !s:write_root_configuration(l:root_config_file_path, l:updated_root_configuration)
+  if !has_key(l:root_configuration, s:root_config_current_key)
+    call s:notify_error('No active remote selected. Run :RemoteSwitch to select a remote.')
     return
   endif
 
-  call s:notify('Added remote: ' . l:connection)
+  let l:selected_remote = l:root_configuration[s:root_config_current_key]
+  if !s:is_valid_current_remote(l:selected_remote)
+    return
+  endif
+
+  if s:find_current_remote_index(l:root_configuration[s:root_config_remotes_key], l:selected_remote) < 0
+    call s:notify_error(
+          \ 'Current remote is not present in "remotes".'
+          \ . ' Run :RemoteSwitch to select a remote.')
+    return
+  endif
+
+  if empty(trim(l:selected_remote['source'])) || empty(trim(l:selected_remote['destination']))
+    call s:notify_error(
+          \ 'Root Configuration "current.source" and "current.destination" must not be empty.')
+    return
+  endif
+
+  if executable('rsync') != 1
+    call s:notify_error('rsync executable not found in PATH.')
+    return
+  endif
+
+  let l:transport = s:remote_pull_transport(l:selected_remote['connection'])
+  if l:transport is v:null
+    return
+  endif
+
+  let l:remote_source = l:transport['target'] . ':' . s:with_trailing_separator(l:selected_remote['source'])
+  let l:local_destination = s:with_trailing_separator(l:selected_remote['destination'])
+  let l:rsync_command = [
+        \ 'rsync',
+        \ '-az',
+        \ '-e',
+        \ l:transport['ssh_command'],
+        \ l:remote_source,
+        \ l:local_destination
+        \ ]
+  if !s:start_async_terminal_command(l:rsync_command, 'vim-remote-naive:RemotePull')
+    return
+  endif
+
+  call s:notify(
+        \ 'RemotePull started: '
+        \ . l:transport['target'] . ':' . l:selected_remote['source']
+        \ . ' -> '
+        \ . l:selected_remote['destination'])
 endfunction
 
 function! vim_remote_naive#remote_switch() abort
