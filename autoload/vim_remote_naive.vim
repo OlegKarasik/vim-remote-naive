@@ -306,7 +306,7 @@ function! s:remote_indexes(remotes) abort
   if empty(a:remotes)
     return []
   endif
-  return range(len(a:remotes) - 1)
+  return range(len(a:remotes))
 endfunction
 
 function! s:filtered_remote_indexes(remotes, search_query) abort

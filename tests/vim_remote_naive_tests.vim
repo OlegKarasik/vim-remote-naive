@@ -31,6 +31,13 @@ function! s:captured_messages() abort
   return l:messages
 endfunction
 
+function! s:autoload_script_local_function(script_local_name) abort
+  call vim_remote_naive#root_config_file_path_for('linux', '/home/me', '', '')
+  let l:function_name = matchstr(execute('function'), '<SNR>\d\+_' . a:script_local_name)
+  call assert_notequal('', l:function_name, 'Expected script-local function: ' . a:script_local_name)
+  return function(l:function_name)
+endfunction
+
 function! s:test_root_config_file_path_for_windows() abort
   let l:path = vim_remote_naive#root_config_file_path_for('windows', '/home/user', 'C:/Users/user/AppData/Roaming', '')
   call assert_equal('C:/Users/user/AppData/Roaming/vim-remote-naive/config.json', l:path)
@@ -274,6 +281,17 @@ function! s:test_remote_switch_fails_when_remotes_empty() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
+function! s:test_remote_switch_popup_indexes_include_all_remotes() abort
+  let l:RemoteIndexes = s:autoload_script_local_function('remote_indexes')
+
+  call assert_equal([], call(l:RemoteIndexes, [[]]), 'Expected no popup indexes for empty remotes list.')
+  call assert_equal([0], call(l:RemoteIndexes, [['first']]), 'Expected popup indexes to include single remote.')
+  call assert_equal(
+        \ [0, 1],
+        \ call(l:RemoteIndexes, [['first', 'second']]),
+        \ 'Expected popup indexes to include all remotes.')
+endfunction
+
 function! s:test_remote_switch_selects_active_remote_and_writes_current() abort
   let l:test_root = s:repo_root . '/tests/tmp/remote-switch-selects-current'
   let l:config_path = l:test_root . '/config.json'
@@ -400,6 +418,7 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_switch_fails_when_root_configuration_missing()
   call s:test_remote_switch_fails_when_remotes_missing()
   call s:test_remote_switch_fails_when_remotes_empty()
+  call s:test_remote_switch_popup_indexes_include_all_remotes()
   call s:test_remote_switch_selects_active_remote_and_writes_current()
   call s:test_remote_switch_cancel_keeps_existing_current()
   call s:test_remote_switch_rejects_invalid_remote_item()
