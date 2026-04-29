@@ -292,6 +292,22 @@ function! s:test_remote_switch_popup_indexes_include_all_remotes() abort
         \ 'Expected popup indexes to include all remotes.')
 endfunction
 
+function! s:test_remote_switch_popup_done_ignores_unknown_popup_id() abort
+  let l:PopupDone = s:autoload_script_local_function('on_remote_list_popup_done')
+  let l:exception = ''
+
+  try
+    call call(l:PopupDone, [9999, 1])
+  catch
+    let l:exception = v:exception
+  endtry
+
+  call assert_equal(
+        \ '',
+        \ l:exception,
+        \ 'Expected popup done callback to ignore unknown popup id without errors.')
+endfunction
+
 function! s:test_remote_switch_selects_active_remote_and_writes_current() abort
   let l:test_root = s:repo_root . '/tests/tmp/remote-switch-selects-current'
   let l:config_path = l:test_root . '/config.json'
@@ -419,6 +435,7 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_switch_fails_when_remotes_missing()
   call s:test_remote_switch_fails_when_remotes_empty()
   call s:test_remote_switch_popup_indexes_include_all_remotes()
+  call s:test_remote_switch_popup_done_ignores_unknown_popup_id()
   call s:test_remote_switch_selects_active_remote_and_writes_current()
   call s:test_remote_switch_cancel_keeps_existing_current()
   call s:test_remote_switch_rejects_invalid_remote_item()

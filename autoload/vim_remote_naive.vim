@@ -477,10 +477,12 @@ function! s:apply_remote_selection(root_config_file_path, root_configuration, se
 endfunction
 
 function! s:on_remote_list_popup_done(popup_id, result) abort
-  let l:state = remove(s:remote_list_popup_states, a:popup_id, {})
-  if empty(l:state)
+  if !has_key(s:remote_list_popup_states, a:popup_id)
     return
   endif
+
+  let l:state = s:remote_list_popup_states[a:popup_id]
+  call remove(s:remote_list_popup_states, a:popup_id)
 
   let l:selection_result = type(a:result) == v:t_number
         \ ? a:result
