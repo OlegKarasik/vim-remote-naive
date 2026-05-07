@@ -16,7 +16,7 @@
 3. Fails with guidance to run `:RemoteSwitch` when `current` is missing or invalid.
 4. Builds an rsync pull command using SSH transport from current remote:
    - remote source: `<connection>:<source>/`
-   - local destination: `<destination>/`
+   - local destination: `<destination>/` (`~/...` expands to user home)
 5. Rejects start when another `:RemotePull` job is already running.
 6. Starts rsync asynchronously in a terminal buffer.
 7. While running, writes progress to global statusline using command title and

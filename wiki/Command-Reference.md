@@ -44,7 +44,7 @@ Behavior:
 2. Requires `current` to be selected; otherwise errors and asks to run `:RemoteSwitch`.
 3. Uses `rsync` over SSH to sync from remote to local:
    - remote: `<connection>:<source>/`
-   - local: `<destination>/`
+   - local: `<destination>/` (expands `~/...` to user home)
 4. Rejects a new pull when another `:RemotePull` job is still active.
 5. Starts `rsync` asynchronously in a terminal buffer.
 6. While running, updates global statusline with command title and elapsed runtime.

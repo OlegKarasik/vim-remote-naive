@@ -204,7 +204,7 @@ function! s:test_remote_pull_starts_async_rsync_for_current_remote() abort
   call assert_equal(
         \ [
         \   'rsync',
-        \   '-az',
+        \   '-a',
         \   '-e',
         \   'ssh -p 2222',
         \   'user@host-a:/srv/project-a/',
@@ -219,6 +219,58 @@ function! s:test_remote_pull_starts_async_rsync_for_current_remote() abort
 
   let l:updated_config = s:read_json_file(l:config_path)
   call assert_equal(l:initial_config, l:updated_config, 'Expected RemotePull to not modify Root Configuration.')
+
+  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+endfunction
+
+function! s:test_remote_pull_expands_tilde_destination_to_home_directory() abort
+  let l:test_root = s:repo_root . '/tests/tmp/remote-pull-expands-tilde-destination'
+  let l:config_path = l:test_root . '/config.json'
+  let l:remote_one = {
+        \ 'source': '/srv/project-a',
+        \ 'destination': '~/project-a',
+        \ 'connection': 'user@host-a'
+        \ }
+  let l:initial_config = {
+        \ 'version': 1,
+        \ 'remotes': [l:remote_one],
+        \ 'current': l:remote_one
+        \ }
+
+  call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
+  call mkdir(l:test_root, 'p')
+  call s:write_json_file(l:config_path, l:initial_config)
+
+  let l:terminal_capture = {}
+  let g:vim_remote_naive_root_config_file_path_override = l:config_path
+  let g:vim_remote_naive_test_remote_pull_terminal_capture = {}
+  try
+    silent RemotePull
+    let l:terminal_capture = deepcopy(g:vim_remote_naive_test_remote_pull_terminal_capture)
+  finally
+    unlet g:vim_remote_naive_root_config_file_path_override
+    unlet g:vim_remote_naive_test_remote_pull_terminal_capture
+  endtry
+
+  let l:expected_destination = expand('~/project-a')
+  if l:expected_destination !~# '[\/\\]$'
+    let l:expected_destination .= '/'
+  endif
+
+  call assert_equal(
+        \ [
+        \   'rsync',
+        \   '-a',
+        \   '-e',
+        \   'ssh',
+        \   'user@host-a:/srv/project-a/',
+        \   l:expected_destination
+        \ ],
+        \ l:terminal_capture['command_args'],
+        \ 'Expected RemotePull to expand "~/..." destination to home directory.')
+
+  let l:updated_config = s:read_json_file(l:config_path)
+  call assert_equal(l:initial_config, l:updated_config, 'Expected RemotePull to keep Root Configuration unchanged.')
 
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
@@ -446,6 +498,7 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_cancel_reports_when_no_active_job()
   call s:test_remote_pull_fails_when_current_missing()
   call s:test_remote_pull_starts_async_rsync_for_current_remote()
+  call s:test_remote_pull_expands_tilde_destination_to_home_directory()
   call s:test_remote_switch_fails_when_root_configuration_missing()
   call s:test_remote_switch_fails_when_remotes_missing()
   call s:test_remote_switch_fails_when_remotes_empty()

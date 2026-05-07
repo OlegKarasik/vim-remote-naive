@@ -306,6 +306,25 @@ function! s:with_trailing_separator(path) abort
   return a:path . '/'
 endfunction
 
+function! s:expand_tilde_home_path(path) abort
+  if a:path !=# '~'
+        \ && strpart(a:path, 0, 2) !=# '~/'
+        \ && strpart(a:path, 0, 2) !=# "~\\"
+    return a:path
+  endif
+
+  let l:home_directory = expand('~')
+  if empty(l:home_directory)
+    return a:path
+  endif
+
+  if a:path ==# '~'
+    return l:home_directory
+  endif
+
+  return s:trim_trailing_separators(l:home_directory) . a:path[1:]
+endfunction
+
 function! s:is_windows() abort
   return has('win32') || has('win64') || has('win32unix')
 endfunction
@@ -1000,10 +1019,11 @@ function! vim_remote_naive#remote_pull() abort
   endif
 
   let l:remote_source = l:transport['target'] . ':' . s:with_trailing_separator(l:selected_remote['source'])
-  let l:local_destination = s:with_trailing_separator(l:selected_remote['destination'])
+  let l:local_destination = s:with_trailing_separator(
+        \ s:expand_tilde_home_path(l:selected_remote['destination']))
   let l:rsync_command = [
         \ 'rsync',
-        \ '-az',
+        \ '-a',
         \ '-e',
         \ l:transport['ssh_command'],
         \ l:remote_source,
