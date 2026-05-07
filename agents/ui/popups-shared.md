@@ -1,16 +1,18 @@
-# Selection Popups (Shared Behavior)
+# Shared Popup Rules (Copied)
 
-**Scope:** Shared behavior for selection popups used by:
+**Scope:** Baseline rules shared across repositories for interactive selection popups.
 **Trigger keywords:** popup keys, popup search mode, popup filtering, no matches.
 **Depends on:** none.
 **Conflicts:** none.
+**Precedence:** these shared rules override any conflicting repository-local popup rules.
 
 ## Visual style
 
-2. dynamic height: `1..10` lines (with scrollbar)
-3. highlight: `Pmenu`
-4. border highlight: `Pmenu`
-5. single-line rounded border style
+1. dynamic height: `1..10` lines (with scrollbar)
+2. highlight: `Pmenu`
+3. border highlight: `Pmenu`
+4. single-line rounded border style
+5. width is repository/command specific (see repository-specific popup docs)
 
 ## Navigation keys
 

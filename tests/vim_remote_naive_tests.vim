@@ -119,6 +119,19 @@ function! s:test_remote_pull_command_is_defined() abort
   call assert_equal(2, exists(':RemotePull'), 'Expected RemotePull command to be defined.')
 endfunction
 
+function! s:test_remote_cancel_command_is_defined() abort
+  call assert_equal(2, exists(':RemoteCancel'), 'Expected RemoteCancel command to be defined.')
+endfunction
+
+function! s:test_remote_cancel_reports_when_no_active_job() abort
+  RemoteCancel
+
+  let l:messages = s:captured_messages()
+  call assert_true(
+        \ stridx(l:messages, 'No active RemotePull job to cancel.') >= 0,
+        \ 'Expected no-active-job cancellation message.')
+endfunction
+
 function! s:test_remote_pull_fails_when_current_missing() abort
   let l:test_root = s:repo_root . '/tests/tmp/remote-pull-missing-current'
   let l:config_path = l:test_root . '/config.json'
@@ -429,6 +442,8 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_config_does_not_overwrite_existing_root_configuration()
   call s:test_remote_add_command_is_not_defined()
   call s:test_remote_pull_command_is_defined()
+  call s:test_remote_cancel_command_is_defined()
+  call s:test_remote_cancel_reports_when_no_active_job()
   call s:test_remote_pull_fails_when_current_missing()
   call s:test_remote_pull_starts_async_rsync_for_current_remote()
   call s:test_remote_switch_fails_when_root_configuration_missing()

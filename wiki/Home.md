@@ -13,3 +13,4 @@
 2. Edit `remotes` in JSON.
 3. Run `:RemoteSwitch` to set `current`.
 4. Run `:RemotePull` to pull updates from remote to local with async `rsync`.
+5. Run `:RemoteCancel` to stop an active pull.

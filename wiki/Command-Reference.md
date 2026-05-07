@@ -24,6 +24,16 @@ Behavior:
 5. Writes selected remote object to `current`.
 6. Keeps configuration unchanged when selection is cancelled.
 
+## `:RemoteCancel`
+
+Cancels the active async `:RemotePull` terminal job.
+
+Behavior:
+
+1. Stops the active RemotePull terminal job when one is running.
+2. Reports `No active RemotePull job to cancel.` when nothing is running.
+3. Restores temporary running-state UI (statusline progress) after cancellation.
+
 ## `:RemotePull`
 
 Pulls updates from remote `source` into local `destination` for the currently selected remote (`current`) using `rsync` over SSH.
@@ -35,5 +45,9 @@ Behavior:
 3. Uses `rsync` over SSH to sync from remote to local:
    - remote: `<connection>:<source>/`
    - local: `<destination>/`
-4. Starts `rsync` asynchronously in a terminal buffer.
-5. Does not modify Root Configuration.
+4. Rejects a new pull when another `:RemotePull` job is still active.
+5. Starts `rsync` asynchronously in a terminal buffer.
+6. While running, updates global statusline with command title and elapsed runtime.
+7. On completion, restores statusline and reports `[Success]` or `[Error]` with elapsed runtime.
+8. On failure, reports exit code when available.
+9. Does not modify Root Configuration.

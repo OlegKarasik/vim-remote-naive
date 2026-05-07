@@ -5,6 +5,15 @@ let s:root_config_current_key = 'current'
 let s:remote_required_fields = ['source', 'destination', 'connection']
 let s:message_prefix = '[vim-remote-naive] '
 let s:remote_list_popup_states = {}
+let s:remote_pull_active = 0
+let s:remote_pull_active_job = v:null
+let s:remote_pull_active_buffer_number = -1
+let s:remote_pull_terminal_name = ''
+let s:remote_pull_started_at = []
+let s:remote_pull_progress_timer_id = -1
+let s:remote_pull_previous_statusline = v:null
+let s:remote_pull_cancel_requested = 0
+let s:remote_pull_statusline_highlight = 'WarningMsg'
 
 function! s:notify(message) abort
   echom s:message_prefix . a:message
@@ -14,6 +23,276 @@ function! s:notify_error(message) abort
   echohl ErrorMsg
   echom s:message_prefix . a:message
   echohl None
+endfunction
+
+function! s:to_string_or_empty(value) abort
+  return type(a:value) == v:t_string ? a:value : string(a:value)
+endfunction
+
+function! s:elapsed_seconds_since(started_at) abort
+  if type(a:started_at) != v:t_list || empty(a:started_at)
+    return 0
+  endif
+
+  let l:elapsed_text = reltimestr(reltime(a:started_at))
+  let l:seconds_text = matchstr(l:elapsed_text, '^\s*\zs\d\+')
+  if empty(l:seconds_text)
+    return 0
+  endif
+
+  return str2nr(l:seconds_text)
+endfunction
+
+function! s:format_elapsed_clock(elapsed_seconds) abort
+  let l:elapsed_seconds = type(a:elapsed_seconds) == v:t_number
+        \ ? a:elapsed_seconds
+        \ : str2nr(s:to_string_or_empty(a:elapsed_seconds))
+  let l:elapsed_seconds = max([0, l:elapsed_seconds])
+  let l:hours = l:elapsed_seconds / 3600
+  let l:minutes = (l:elapsed_seconds % 3600) / 60
+  let l:seconds = l:elapsed_seconds % 60
+  return printf('%02d:%02d:%02d', l:hours, l:minutes, l:seconds)
+endfunction
+
+function! s:format_elapsed_runtime(elapsed_seconds) abort
+  return '[' . s:format_elapsed_clock(a:elapsed_seconds) . ']'
+endfunction
+
+function! s:statusline_escape_text(text) abort
+  return substitute(s:to_string_or_empty(a:text), '%', '%%', 'g')
+endfunction
+
+function! s:set_global_statusline(message, highlight_group) abort
+  let l:message = s:statusline_escape_text(a:message)
+  if empty(l:message)
+    return
+  endif
+
+  let l:highlight_group = trim(s:to_string_or_empty(a:highlight_group))
+  if empty(l:highlight_group)
+    let &g:statusline = l:message
+  else
+    let &g:statusline = '%#' . l:highlight_group . '#' . l:message . '%=%*'
+  endif
+
+  silent! redrawstatus
+endfunction
+
+function! s:remember_global_statusline_for_remote_pull() abort
+  let s:remote_pull_previous_statusline = &g:statusline
+endfunction
+
+function! s:restore_global_statusline_from_remote_pull() abort
+  if s:remote_pull_previous_statusline is v:null
+    return
+  endif
+
+  let &g:statusline = s:to_string_or_empty(s:remote_pull_previous_statusline)
+  let s:remote_pull_previous_statusline = v:null
+  silent! redrawstatus
+endfunction
+
+function! s:remote_pull_progress_message(elapsed_seconds, terminal_name) abort
+  let l:terminal_name = trim(s:to_string_or_empty(a:terminal_name))
+  if empty(l:terminal_name)
+    return ''
+  endif
+
+  return l:terminal_name . ' ' . s:format_elapsed_runtime(a:elapsed_seconds)
+endfunction
+
+function! s:write_remote_pull_progress() abort
+  if !s:remote_pull_active
+    return
+  endif
+
+  let l:message = s:remote_pull_progress_message(
+        \ s:elapsed_seconds_since(s:remote_pull_started_at),
+        \ s:remote_pull_terminal_name)
+  if empty(l:message)
+    return
+  endif
+
+  call s:set_global_statusline(l:message, s:remote_pull_statusline_highlight)
+endfunction
+
+function! s:on_remote_pull_progress_tick(timer_id) abort
+  if !s:remote_pull_active || s:remote_pull_progress_timer_id != a:timer_id
+    if exists('*timer_stop')
+      call timer_stop(a:timer_id)
+    endif
+    return
+  endif
+
+  call s:write_remote_pull_progress()
+endfunction
+
+function! s:start_remote_pull_progress() abort
+  call s:stop_remote_pull_progress()
+  call s:remember_global_statusline_for_remote_pull()
+  call s:write_remote_pull_progress()
+
+  if exists('*timer_start')
+    let l:timer_id = timer_start(
+          \ 1000,
+          \ function('s:on_remote_pull_progress_tick'),
+          \ {'repeat': -1})
+    if type(l:timer_id) == v:t_number && l:timer_id > 0
+      let s:remote_pull_progress_timer_id = l:timer_id
+    endif
+  endif
+endfunction
+
+function! s:stop_remote_pull_progress() abort
+  if exists('*timer_stop')
+        \ && type(s:remote_pull_progress_timer_id) == v:t_number
+        \ && s:remote_pull_progress_timer_id > 0
+    call timer_stop(s:remote_pull_progress_timer_id)
+  endif
+  let s:remote_pull_progress_timer_id = -1
+  call s:restore_global_statusline_from_remote_pull()
+endfunction
+
+function! s:write_remote_pull_completion(terminal_name, elapsed_seconds, exit_code) abort
+  let l:terminal_name = trim(s:to_string_or_empty(a:terminal_name))
+  if empty(l:terminal_name)
+    let l:terminal_name = 'vim-remote-naive:RemotePull'
+  endif
+  let l:elapsed_runtime = s:format_elapsed_runtime(a:elapsed_seconds)
+
+  if a:exit_code == 0
+    call s:notify(l:terminal_name . ' ' . l:elapsed_runtime . ' [Success].')
+    return
+  endif
+
+  call s:notify_error(
+        \ l:terminal_name
+        \ . ' '
+        \ . l:elapsed_runtime
+        \ . ' [Error] (exit code '
+        \ . a:exit_code
+        \ . ').')
+endfunction
+
+function! s:clear_remote_pull_active_state() abort
+  call s:stop_remote_pull_progress()
+  let s:remote_pull_active = 0
+  let s:remote_pull_active_job = v:null
+  let s:remote_pull_active_buffer_number = -1
+  let s:remote_pull_terminal_name = ''
+  let s:remote_pull_started_at = []
+  let s:remote_pull_cancel_requested = 0
+endfunction
+
+function! s:is_terminal_buffer_job_running(buffer_number) abort
+  if a:buffer_number <= 0
+        \ || !bufexists(a:buffer_number)
+        \ || getbufvar(a:buffer_number, '&buftype', '') !=# 'terminal'
+        \ || !exists('*term_getstatus')
+    return 0
+  endif
+
+  return stridx(term_getstatus(a:buffer_number), 'running') >= 0
+endfunction
+
+function! s:is_active_remote_pull_running() abort
+  if !s:remote_pull_active
+    return 0
+  endif
+
+  if s:is_terminal_buffer_job_running(s:remote_pull_active_buffer_number)
+    return 1
+  endif
+
+  let l:job = s:remote_pull_active_job
+  if exists('*term_getjob')
+        \ && s:remote_pull_active_buffer_number > 0
+        \ && bufexists(s:remote_pull_active_buffer_number)
+    let l:job = term_getjob(s:remote_pull_active_buffer_number)
+  endif
+  let l:exit_code = s:terminal_job_exit_code(l:job, v:null)
+  if s:remote_pull_cancel_requested && l:exit_code == 0
+    let l:exit_code = -1
+  endif
+  let l:elapsed_seconds = s:elapsed_seconds_since(s:remote_pull_started_at)
+  let l:terminal_name = s:remote_pull_terminal_name
+  call s:clear_remote_pull_active_state()
+  call s:write_remote_pull_completion(l:terminal_name, l:elapsed_seconds, l:exit_code)
+  return 0
+endfunction
+
+function! s:set_remote_pull_active_state(job, buffer_number, terminal_name, started_at) abort
+  let s:remote_pull_active = 1
+  let s:remote_pull_active_job = a:job
+  let s:remote_pull_active_buffer_number = a:buffer_number
+  let s:remote_pull_terminal_name = a:terminal_name
+  let s:remote_pull_started_at = a:started_at
+  let s:remote_pull_cancel_requested = 0
+  call s:start_remote_pull_progress()
+endfunction
+
+function! s:stop_terminal_buffer_job(buffer_number) abort
+  if a:buffer_number <= 0
+        \ || !bufexists(a:buffer_number)
+        \ || getbufvar(a:buffer_number, '&buftype', '') !=# 'terminal'
+    return
+  endif
+
+  if exists('*term_setkill')
+    call term_setkill(a:buffer_number, 'kill')
+  endif
+  if exists('*term_getjob') && exists('*job_stop')
+    let l:job = term_getjob(a:buffer_number)
+    if type(l:job) == v:t_number
+          \ || (exists('v:t_job') && type(l:job) == v:t_job)
+      call job_stop(l:job, 'kill')
+    endif
+  endif
+  if exists('*term_wait')
+    call term_wait(a:buffer_number, 50)
+  endif
+endfunction
+
+function! s:terminal_job_exit_code(job, status) abort
+  if type(a:status) == v:t_number
+    return a:status
+  endif
+
+  let l:status_text = trim(s:to_string_or_empty(a:status))
+  if l:status_text =~# '^-\\?\d\+$'
+    return str2nr(l:status_text)
+  endif
+
+  if !exists('*job_info')
+    return 0
+  endif
+
+  try
+    let l:job_info = job_info(a:job)
+  catch
+    return 0
+  endtry
+
+  if type(l:job_info) == v:t_dict && has_key(l:job_info, 'exitval')
+    return str2nr(s:to_string_or_empty(get(l:job_info, 'exitval', 0)))
+  endif
+
+  return 0
+endfunction
+
+function! s:on_remote_pull_exit(terminal_name, started_at, job, status) abort
+  if !s:remote_pull_active || string(s:remote_pull_active_job) !=# string(a:job)
+    return
+  endif
+
+  let l:elapsed_seconds = s:elapsed_seconds_since(a:started_at)
+  let l:exit_code = s:terminal_job_exit_code(a:job, a:status)
+  if s:remote_pull_cancel_requested && l:exit_code == 0
+    let l:exit_code = -1
+  endif
+
+  call s:clear_remote_pull_active_state()
+  call s:write_remote_pull_completion(a:terminal_name, l:elapsed_seconds, l:exit_code)
 endfunction
 
 function! s:trim_trailing_separators(path) abort
@@ -564,7 +843,7 @@ function! s:show_remote_selection_popup(root_config_file_path, root_configuratio
         \ 'maxheight': 10,
         \ 'scrollbar': 1,
         \ 'highlight': 'Pmenu',
-        \ 'border': [],
+        \ 'border': [1, 1, 1, 1],
         \ 'borderhighlight': ['Pmenu'],
         \ 'borderchars': s:rounded_border_chars()
         \ })
@@ -624,10 +903,20 @@ function! s:remote_pull_transport(connection) abort
 endfunction
 
 function! s:start_async_terminal_command(command_args, terminal_name) abort
+  if s:is_active_remote_pull_running()
+    call s:notify_error('RemotePull is already running. Run :RemoteCancel to stop active pull.')
+    return 0
+  endif
+
+  let l:terminal_name = trim(s:to_string_or_empty(a:terminal_name))
+  if empty(l:terminal_name)
+    let l:terminal_name = 'vim-remote-naive:RemotePull'
+  endif
+
   if exists('g:vim_remote_naive_test_remote_pull_terminal_capture')
     let g:vim_remote_naive_test_remote_pull_terminal_capture = {
           \ 'command_args': deepcopy(a:command_args),
-          \ 'terminal_name': a:terminal_name
+          \ 'terminal_name': l:terminal_name
           \ }
     let l:start_result = get(g:, 'vim_remote_naive_test_remote_pull_terminal_start_result', 1)
     return type(l:start_result) == v:t_number ? l:start_result : str2nr(l:start_result)
@@ -639,10 +928,12 @@ function! s:start_async_terminal_command(command_args, terminal_name) abort
   endif
 
   botright 12new
+  let l:started_at = reltime()
   let l:job_id = term_start(a:command_args, {
         \ 'curwin': 1,
-        \ 'term_name': a:terminal_name,
-        \ 'term_finish': 'open'
+        \ 'term_name': l:terminal_name,
+        \ 'term_finish': 'open',
+        \ 'exit_cb': function('s:on_remote_pull_exit', [l:terminal_name, l:started_at])
         \ })
   if l:job_id <= 0
     close
@@ -650,6 +941,7 @@ function! s:start_async_terminal_command(command_args, terminal_name) abort
     return 0
   endif
 
+  call s:set_remote_pull_active_state(l:job_id, bufnr('%'), l:terminal_name, l:started_at)
   return 1
 endfunction
 
@@ -663,6 +955,11 @@ function! vim_remote_naive#remote_config() abort
 endfunction
 
 function! vim_remote_naive#remote_pull() abort
+  if s:is_active_remote_pull_running()
+    call s:notify_error('RemotePull is already running. Run :RemoteCancel to stop active pull.')
+    return
+  endif
+
   let l:root_config_file_path = vim_remote_naive#root_config_file_path()
   let l:root_configuration = s:read_root_configuration(l:root_config_file_path)
   if l:root_configuration is v:null
@@ -721,6 +1018,29 @@ function! vim_remote_naive#remote_pull() abort
         \ . l:transport['target'] . ':' . l:selected_remote['source']
         \ . ' -> '
         \ . l:selected_remote['destination'])
+endfunction
+
+function! vim_remote_naive#remote_cancel() abort
+  if !s:is_active_remote_pull_running()
+    call s:notify('No active RemotePull job to cancel.')
+    return
+  endif
+
+  let l:buffer_number = s:remote_pull_active_buffer_number
+  let s:remote_pull_cancel_requested = 1
+  call s:stop_terminal_buffer_job(l:buffer_number)
+
+  if s:is_terminal_buffer_job_running(l:buffer_number)
+    call s:notify_error('Failed to cancel active RemotePull job.')
+    return
+  endif
+
+  if s:remote_pull_active
+    let l:elapsed_seconds = s:elapsed_seconds_since(s:remote_pull_started_at)
+    let l:terminal_name = s:remote_pull_terminal_name
+    call s:clear_remote_pull_active_state()
+    call s:write_remote_pull_completion(l:terminal_name, l:elapsed_seconds, -1)
+  endif
 endfunction
 
 function! vim_remote_naive#remote_switch() abort

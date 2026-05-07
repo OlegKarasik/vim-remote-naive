@@ -12,6 +12,7 @@ Available commands:
 - `:RemoteConfig` - ensures the Root Configuration file exists and opens it.
 - `:RemoteSwitch` - selects an entry from `remotes` and writes it to `current`.
 - `:RemotePull` - pulls updates from the selected remote into the local destination using async `rsync` in a terminal.
+- `:RemoteCancel` - cancels the active async `:RemotePull` job.
 
 Quick workflow:
 
@@ -19,6 +20,7 @@ Quick workflow:
 2. Add remote entries to `remotes` in the opened JSON file.
 3. Run `:RemoteSwitch` and choose the active remote.
 4. Run `:RemotePull` to sync remote changes into your local directory.
+5. Run `:RemoteCancel` when you need to stop an active pull.
 
 ## Detailed documentation (wiki format)
 
