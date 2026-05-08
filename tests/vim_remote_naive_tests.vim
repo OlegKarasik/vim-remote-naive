@@ -275,6 +275,23 @@ function! s:test_remote_pull_expands_tilde_destination_to_home_directory() abort
   call s:cleanup_directory(fnamemodify(l:test_root, ':h'))
 endfunction
 
+function! s:test_remote_pull_exit_matches_active_terminal_job() abort
+  let l:IsRemotePullJobMatch = s:autoload_script_local_function('is_remote_pull_job_match')
+
+  call assert_equal(
+        \ 1,
+        \ call(l:IsRemotePullJobMatch, [42, 314, 314]),
+        \ 'Expected exit callback job to match terminal buffer job when active handle is buffer number.')
+  call assert_equal(
+        \ 1,
+        \ call(l:IsRemotePullJobMatch, [314, v:null, 314]),
+        \ 'Expected exit callback job to match active handle directly.')
+  call assert_equal(
+        \ 0,
+        \ call(l:IsRemotePullJobMatch, [42, 315, 314]),
+        \ 'Expected unmatched jobs to be rejected.')
+endfunction
+
 function! s:test_remote_switch_fails_when_root_configuration_missing() abort
   let l:test_root = s:repo_root . '/tests/tmp/remote-switch-missing-config'
   let l:config_path = fnamemodify(l:test_root . '/config.json', ':p')
@@ -499,6 +516,7 @@ function! VimRemoteNaiveTestRunAll() abort
   call s:test_remote_pull_fails_when_current_missing()
   call s:test_remote_pull_starts_async_rsync_for_current_remote()
   call s:test_remote_pull_expands_tilde_destination_to_home_directory()
+  call s:test_remote_pull_exit_matches_active_terminal_job()
   call s:test_remote_switch_fails_when_root_configuration_missing()
   call s:test_remote_switch_fails_when_remotes_missing()
   call s:test_remote_switch_fails_when_remotes_empty()

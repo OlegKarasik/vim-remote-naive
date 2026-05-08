@@ -195,6 +195,47 @@ function! s:is_terminal_buffer_job_running(buffer_number) abort
   return stridx(term_getstatus(a:buffer_number), 'running') >= 0
 endfunction
 
+function! s:is_job_handle(job) abort
+  if type(a:job) == v:t_number
+    return a:job > 0
+  endif
+
+  return exists('v:t_job') && type(a:job) == v:t_job
+endfunction
+
+function! s:terminal_buffer_job(buffer_number) abort
+  if !exists('*term_getjob')
+        \ || a:buffer_number <= 0
+        \ || !bufexists(a:buffer_number)
+        \ || getbufvar(a:buffer_number, '&buftype', '') !=# 'terminal'
+    return v:null
+  endif
+
+  let l:job = term_getjob(a:buffer_number)
+  return s:is_job_handle(l:job) ? l:job : v:null
+endfunction
+
+function! s:jobs_match(left, right) abort
+  return string(a:left) ==# string(a:right)
+endfunction
+
+function! s:is_remote_pull_job_match(active_job, buffer_job, callback_job) abort
+  if s:jobs_match(a:active_job, a:callback_job)
+    return 1
+  endif
+
+  return a:buffer_job isnot v:null
+        \ && s:jobs_match(a:buffer_job, a:callback_job)
+endfunction
+
+function! s:remote_pull_exit_matches_active_job(callback_job) abort
+  let l:buffer_job = s:terminal_buffer_job(s:remote_pull_active_buffer_number)
+  return s:is_remote_pull_job_match(
+        \ s:remote_pull_active_job,
+        \ l:buffer_job,
+        \ a:callback_job)
+endfunction
+
 function! s:is_active_remote_pull_running() abort
   if !s:remote_pull_active
     return 0
@@ -204,11 +245,9 @@ function! s:is_active_remote_pull_running() abort
     return 1
   endif
 
-  let l:job = s:remote_pull_active_job
-  if exists('*term_getjob')
-        \ && s:remote_pull_active_buffer_number > 0
-        \ && bufexists(s:remote_pull_active_buffer_number)
-    let l:job = term_getjob(s:remote_pull_active_buffer_number)
+  let l:job = s:terminal_buffer_job(s:remote_pull_active_buffer_number)
+  if l:job is v:null
+    let l:job = s:remote_pull_active_job
   endif
   let l:exit_code = s:terminal_job_exit_code(l:job, v:null)
   if s:remote_pull_cancel_requested && l:exit_code == 0
@@ -241,10 +280,9 @@ function! s:stop_terminal_buffer_job(buffer_number) abort
   if exists('*term_setkill')
     call term_setkill(a:buffer_number, 'kill')
   endif
-  if exists('*term_getjob') && exists('*job_stop')
-    let l:job = term_getjob(a:buffer_number)
-    if type(l:job) == v:t_number
-          \ || (exists('v:t_job') && type(l:job) == v:t_job)
+  if exists('*job_stop')
+    let l:job = s:terminal_buffer_job(a:buffer_number)
+    if s:is_job_handle(l:job)
       call job_stop(l:job, 'kill')
     endif
   endif
@@ -281,7 +319,7 @@ function! s:terminal_job_exit_code(job, status) abort
 endfunction
 
 function! s:on_remote_pull_exit(terminal_name, started_at, job, status) abort
-  if !s:remote_pull_active || string(s:remote_pull_active_job) !=# string(a:job)
+  if !s:remote_pull_active || !s:remote_pull_exit_matches_active_job(a:job)
     return
   endif
 
@@ -948,19 +986,25 @@ function! s:start_async_terminal_command(command_args, terminal_name) abort
 
   botright 12new
   let l:started_at = reltime()
-  let l:job_id = term_start(a:command_args, {
+  let l:terminal_result = term_start(a:command_args, {
         \ 'curwin': 1,
         \ 'term_name': l:terminal_name,
         \ 'term_finish': 'open',
         \ 'exit_cb': function('s:on_remote_pull_exit', [l:terminal_name, l:started_at])
         \ })
-  if l:job_id <= 0
+  if l:terminal_result <= 0
     close
     call s:notify_error('Failed to start terminal job.')
     return 0
   endif
 
-  call s:set_remote_pull_active_state(l:job_id, bufnr('%'), l:terminal_name, l:started_at)
+  let l:terminal_buffer_number = bufnr('%')
+  let l:job = s:terminal_buffer_job(l:terminal_buffer_number)
+  if l:job is v:null
+    let l:job = l:terminal_result
+  endif
+
+  call s:set_remote_pull_active_state(l:job, l:terminal_buffer_number, l:terminal_name, l:started_at)
   return 1
 endfunction
 
