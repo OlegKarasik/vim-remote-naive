@@ -18,7 +18,8 @@ Reads `remotes` from Root Configuration and prompts for selection.
 Behavior:
 
 1. Requires existing, valid Root Configuration with non-empty `remotes`.
-2. Shows a popup menu (`popup_menu()`) when available, otherwise uses `inputlist()`.
+2. Requires a popup menu (`popup_menu()`); if popup support is unavailable,
+   command reports an error and stops.
 3. Marks the active remote with `*`.
 4. Supports popup search mode (`Ctrl+F`) with filtering.
 5. Writes selected remote object to `current`.

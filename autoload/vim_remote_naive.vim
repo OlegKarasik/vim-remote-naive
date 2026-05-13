@@ -776,14 +776,6 @@ function! s:rounded_border_chars() abort
         \ ]
 endfunction
 
-function! s:select_remote_with_inputlist(selection_lines) abort
-  let l:menu_lines = ['Select active remote (0 to cancel):']
-  for l:line_index in range(len(a:selection_lines))
-    call add(l:menu_lines, printf('%d. %s', l:line_index + 1, a:selection_lines[l:line_index]))
-  endfor
-  return inputlist(l:menu_lines)
-endfunction
-
 function! s:apply_remote_selection(root_config_file_path, root_configuration, selection_result) abort
   let l:selection_result = type(a:selection_result) == v:t_number
         \ ? a:selection_result
@@ -1137,6 +1129,5 @@ function! vim_remote_naive#remote_switch() abort
     return
   endif
 
-  let l:selection_result = s:select_remote_with_inputlist(l:selection_lines)
-  call s:apply_remote_selection(l:root_config_file_path, l:root_configuration, l:selection_result)
+  call s:notify_error('RemoteSwitch requires popup support (popup_menu).')
 endfunction
