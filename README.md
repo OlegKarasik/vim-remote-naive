@@ -1,7 +1,7 @@
 # vim-remote-naive
 
 > [!WARNING]
-> This plugin was written by AI, except for `AGENTS.md`.
+> The code in this repository is written completely by AI. No human review applied.
 
 `vim-remote-naive` manages remote definitions in a user-wide JSON file and lets you switch the active remote inside Vim.
 
